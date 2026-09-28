@@ -79,6 +79,7 @@ namespace YourFinalOrder.Player
             if (bodyRenderers != null)
                 foreach (var r in bodyRenderers)
                     if (r != null) r.enabled = !dead;
+            if (TryGetComponent<RobotAppearance>(out var robot)) robot.SetVisible(!dead);
 
             // Мёртвые не сталкиваются с живыми и монстром
             if (cc != null) cc.enabled = !dead;

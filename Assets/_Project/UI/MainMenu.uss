@@ -51,7 +51,92 @@
 }
 
 .brand {
-    margin-bottom: 56px;
+    margin-bottom: 36px;
+    margin-left: -40px;
+}
+
+.logo-wrap {
+    width: 620px;
+    height: 349px;
+}
+
+.logo {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url("../Art/Branding/Logo.png");
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.logo-ghost {
+    opacity: 0;
+}
+
+.logo-r {
+    -unity-background-image-tint-color: rgb(255, 40, 70);
+}
+
+.logo-c {
+    -unity-background-image-tint-color: rgb(40, 230, 255);
+}
+
+/* ---------- выбор робота ---------- */
+
+.robot-cards {
+    flex-direction: row;
+    justify-content: space-between;
+    margin: 8px 0 12px 0;
+}
+
+.robot-card {
+    width: 32%;
+    background-color: rgba(0, 0, 0, 0.45);
+    border-width: 2px;
+    border-color: var(--line);
+    border-radius: 2px;
+    padding: 0 0 10px 0;
+    transition-property: border-color, translate, background-color;
+    transition-duration: 0.15s;
+}
+
+.robot-card:hover {
+    border-color: rgba(232, 119, 46, 0.6);
+    translate: 0 -4px;
+}
+
+.robot-card--selected {
+    border-color: var(--accent);
+    background-color: rgba(232, 119, 46, 0.12);
+}
+
+.robot-card__image {
+    height: 250px;
+    -unity-background-scale-mode: scale-and-crop;
+}
+
+.robot-card__image--can { background-image: url("../Art/Robots/Portrait_Can.png"); }
+.robot-card__image--toaster { background-image: url("../Art/Robots/Portrait_Toaster.png"); }
+.robot-card__image--lantern { background-image: url("../Art/Robots/Portrait_Lantern.png"); }
+
+.robot-card__name {
+    font-size: 17px;
+    color: var(--text);
+    margin: 8px 10px 2px 10px;
+    padding: 0;
+}
+
+.robot-card--selected .robot-card__name {
+    color: var(--accent);
+}
+
+.robot-card__desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    white-space: normal;
+    margin: 0 10px;
+    padding: 0;
 }
 
 .title-wrap {

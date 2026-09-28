@@ -36,6 +36,8 @@ namespace YourFinalOrder.EditorTools
         const string MenuScenePath = ScenesDir + "/Menu.unity";
         const string GameScenePath = ScenesDir + "/Game.unity";
         const string ShuttleDir = Root + "/Art/Models/Shuttle";
+        const string RobotsDir = Root + "/Art/Models/Robots";
+        static readonly string[] RobotNames = { "Can", "Toaster", "Lantern" }; // порядок = enum RobotModel
 
         [MenuItem("Your Last Order/Собрать проект", priority = 0)]
         public static void BuildAll() => Generate(interactive: true);
@@ -52,10 +54,12 @@ namespace YourFinalOrder.EditorTools
                 EnsureFolder(ScenesDir);
                 SetupRenderPipeline();
                 SetupPlayerSettings();
+                SetupIcon();
 
                 if (interactive) EditorUtility.DisplayProgressBar("Your Last Order", "Материалы...", 0.2f);
                 var mats = new MaterialSet();
                 SetupShuttleImport(mats);
+                SetupRobotImports(mats);
 
                 if (interactive) EditorUtility.DisplayProgressBar("Your Last Order", "Префабы...", 0.4f);
                 var player = BuildPlayerPrefab(mats);
@@ -141,6 +145,7 @@ namespace YourFinalOrder.EditorTools
         {
             public readonly Material Shuttle, ShuttleGlass, EngineGlow, Lamp;
             public readonly Material Floor, Wall, Ceiling, Metal, Cardboard, Tape, Screen, Body, Additive;
+            public readonly Material RobotFace, RobotRed, RobotGlass;
 
             public MaterialSet()
             {
@@ -159,9 +164,12 @@ namespace YourFinalOrder.EditorTools
                 Screen = Lit("M_Screen", new Color(0.02f, 0.05f, 0.03f), 0f, 0.9f, null, new Color(0.25f, 1f, 0.45f) * 1.8f);
                 Body = Lit("M_RobotBody", new Color(0.42f, 0.5f, 0.38f), 0.5f, 0.35f, NoiseTex("T_RobotPaint", 0.8f, 0.3f, plates: false));
                 Additive = ParticleAdditive("M_FX_Additive");
+                RobotFace = Lit("M_RobotFace", new Color(0.05f, 0.2f, 0.1f), 0f, 0.85f, null, new Color(0.3f, 1f, 0.5f) * 4f);
+                RobotRed = Lit("M_RobotRed", new Color(0.6f, 0.05f, 0.03f), 0f, 0.6f, null, new Color(1f, 0.1f, 0.05f) * 3f);
+                RobotGlass = Transparent("M_RobotGlass", new Color(0.7f, 0.85f, 0.8f, 0.25f), 0.95f);
             }
 
-            static Material Lit(string name, Color color, float metallic, float smoothness, Texture2D tex, Color? emission = null)
+            public static Material Lit(string name, Color color, float metallic, float smoothness, Texture2D tex, Color? emission = null)
             {
                 string path = $"{Gen}/{name}.mat";
                 var shader = Shader.Find("Universal Render Pipeline/Lit");
@@ -189,6 +197,27 @@ namespace YourFinalOrder.EditorTools
                 }
                 BaseShaderGUI.SetMaterialKeywords(mat, LitGUI.SetMaterialKeywords);
                 if (emission.HasValue) mat.EnableKeyword("_EMISSION");
+                EditorUtility.SetDirty(mat);
+                return mat;
+            }
+
+            static Material Transparent(string name, Color color, float smoothness)
+            {
+                string path = $"{Gen}/{name}.mat";
+                var shader = Shader.Find("Universal Render Pipeline/Lit");
+                var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+                if (mat == null)
+                {
+                    mat = new Material(shader);
+                    AssetDatabase.CreateAsset(mat, path);
+                }
+                mat.shader = shader;
+                mat.SetColor("_BaseColor", color);
+                mat.SetFloat("_Smoothness", smoothness);
+                mat.SetFloat("_Metallic", 0f);
+                mat.SetFloat("_Surface", 1f); // Transparent
+                mat.SetFloat("_Blend", 0f);   // Alpha
+                BaseShaderGUI.SetMaterialKeywords(mat, LitGUI.SetMaterialKeywords);
                 EditorUtility.SetDirty(mat);
                 return mat;
             }
@@ -309,6 +338,41 @@ namespace YourFinalOrder.EditorTools
             importer.SaveAndReimport();
         }
 
+        static void SetupRobotImports(MaterialSet mats)
+        {
+            foreach (var name in RobotNames)
+            {
+                string path = $"{RobotsDir}/Robot_{name}.fbx";
+                if (!(AssetImporter.GetAtPath(path) is ModelImporter importer))
+                {
+                    Debug.LogWarning($"Не найден {path} — запустите Tools/Blender/build_robots.py");
+                    continue;
+                }
+                var albedo = AssetDatabase.LoadAssetAtPath<Texture2D>($"{RobotsDir}/Robot_{name}_Albedo.png");
+                var bodyMat = MaterialSet.Lit($"M_Robot_{name}", Color.white, 0.3f, 0.35f, albedo);
+
+                importer.importCameras = false;
+                importer.importLights = false;
+                importer.animationType = ModelImporterAnimationType.None;
+                importer.importAnimation = false;
+                importer.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
+                importer.materialLocation = ModelImporterMaterialLocation.InPrefab;
+                foreach (var src in new[] { "Paint", "Paint2", "Rust", "DarkMetal" })
+                    importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), src), bodyMat);
+                importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), "Face"), mats.RobotFace);
+                importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), "Red"), mats.RobotRed);
+                importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), "Glass"), mats.RobotGlass);
+                importer.SaveAndReimport();
+            }
+        }
+
+        static void SetupIcon()
+        {
+            var icon = AssetDatabase.LoadAssetAtPath<Texture2D>(Root + "/Art/Branding/Icon.png");
+            if (icon == null) return;
+            PlayerSettings.SetIcons(UnityEditor.Build.NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
+        }
+
         // ================================================================== префабы
 
         static GameObject Primitive(PrimitiveType type, string name, Transform parent, Vector3 pos, Vector3 scale,
@@ -341,22 +405,9 @@ namespace YourFinalOrder.EditorTools
             nt.SyncScaleX = nt.SyncScaleY = nt.SyncScaleZ = false;
             nt.Interpolate = true;
 
-            // Временное тело робота «Консерва»: корпус-банка, купол, окуляры, антенна
+            // Модель робота подставляется в рантайме (RobotAppearance) по выбору игрока
             var body = new GameObject("Body").transform;
             body.SetParent(root.transform, false);
-            var renderers = new List<Renderer>
-            {
-                Primitive(PrimitiveType.Cylinder, "Torso", body, new Vector3(0, 0.75f, 0), new Vector3(0.62f, 0.5f, 0.62f), mats.Body, false).GetComponent<Renderer>(),
-                Primitive(PrimitiveType.Sphere, "Dome", body, new Vector3(0, 1.3f, 0), new Vector3(0.62f, 0.55f, 0.62f), mats.Body, false).GetComponent<Renderer>(),
-                Primitive(PrimitiveType.Cylinder, "Skirt", body, new Vector3(0, 0.28f, 0), new Vector3(0.66f, 0.1f, 0.66f), mats.Metal, false).GetComponent<Renderer>(),
-                Primitive(PrimitiveType.Cylinder, "EyeL", body, new Vector3(-0.12f, 1.36f, 0.27f), new Vector3(0.12f, 0.04f, 0.12f), mats.Screen, false).GetComponent<Renderer>(),
-                Primitive(PrimitiveType.Cylinder, "EyeR", body, new Vector3(0.12f, 1.36f, 0.27f), new Vector3(0.12f, 0.04f, 0.12f), mats.Screen, false).GetComponent<Renderer>(),
-                Primitive(PrimitiveType.Cylinder, "Antenna", body, new Vector3(0.1f, 1.72f, -0.05f), new Vector3(0.02f, 0.12f, 0.02f), mats.Metal, false).GetComponent<Renderer>(),
-                Primitive(PrimitiveType.Cylinder, "FootL", body, new Vector3(-0.16f, 0.06f, 0.05f), new Vector3(0.22f, 0.06f, 0.3f), mats.Metal, false).GetComponent<Renderer>(),
-                Primitive(PrimitiveType.Cylinder, "FootR", body, new Vector3(0.16f, 0.06f, 0.05f), new Vector3(0.22f, 0.06f, 0.3f), mats.Metal, false).GetComponent<Renderer>(),
-            };
-            foreach (var t in new[] { "EyeL", "EyeR" })
-                body.Find(t).localRotation = Quaternion.Euler(90f, 0f, 0f);
 
             var head = new GameObject("CameraRoot").transform;
             head.SetParent(root.transform, false);
@@ -394,9 +445,12 @@ namespace YourFinalOrder.EditorTools
             np.playerCamera = cam;
             np.audioListener = listener;
             np.head = head;
-            np.bodyRenderers = renderers.ToArray();
+            np.bodyRenderers = new Renderer[0];
             var state = root.AddComponent<PlayerState>();
-            state.bodyRenderers = renderers.ToArray();
+            state.bodyRenderers = new Renderer[0];
+            var robot = root.AddComponent<RobotAppearance>();
+            robot.bodyRoot = body;
+            robot.models = RobotNames.Select(n => AssetDatabase.LoadAssetAtPath<GameObject>($"{RobotsDir}/Robot_{n}.fbx")).ToArray();
             root.AddComponent<Flashlight>().spot = spot;
             root.AddComponent<PlayerInteractor>().cam = cam;
             root.AddComponent<Footsteps>();

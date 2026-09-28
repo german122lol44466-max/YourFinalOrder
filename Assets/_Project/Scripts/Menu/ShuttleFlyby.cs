@@ -12,6 +12,7 @@ namespace YourFinalOrder.Menu
         public Transform model;
         public Material additiveMaterial;
         public Color reactorColor = new(0.35f, 0.75f, 1f);
+        public float expectedLength = 18f;
 
         [Header("Покачивание")]
         public float bobAmplitude = 0.6f;
@@ -72,6 +73,13 @@ namespace YourFinalOrder.Menu
             var fix = Quaternion.LookRotation(transform.forward, transform.up) *
                       Quaternion.Inverse(Quaternion.LookRotation(forward, up));
             model.rotation = fix * model.rotation;
+
+            // Страховка от неверного масштаба FBX: шаттл должен быть ~18 м в длину
+            bounds = renderers[0].bounds;
+            foreach (var r in renderers) bounds.Encapsulate(r.bounds);
+            float length = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z);
+            if (length > 0.01f && Mathf.Abs(length / expectedLength - 1f) > 0.4f)
+                model.localScale *= expectedLength / length;
 
             bounds = renderers[0].bounds;
             foreach (var r in renderers) bounds.Encapsulate(r.bounds);

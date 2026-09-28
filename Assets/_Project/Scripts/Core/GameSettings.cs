@@ -53,11 +53,18 @@ namespace YourFinalOrder.Core
             { CrosshairStyle.None, "Нет" },
         };
 
+        public static readonly Dictionary<RobotModel, string> RobotTitles = new()
+        {
+            { RobotModel.Can, "«Консерва»" },
+            { RobotModel.Toaster, "«Тостер»" },
+            { RobotModel.Lantern, "«Фонарь»" },
+        };
+
         public static readonly Dictionary<RobotModel, string> RobotNames = new()
         {
-            { RobotModel.Can, "«Консерва» — купольный курьер" },
-            { RobotModel.Toaster, "«Тостер» — квадратный грузчик" },
-            { RobotModel.Lantern, "«Фонарь» — высокий разведчик" },
+            { RobotModel.Can, "Купольный курьер с окулярами. Ржавый, но надёжный." },
+            { RobotModel.Toaster, "Грузчик с ЭЛТ-монитором вместо головы. Моргает пикселями." },
+            { RobotModel.Lantern, "Высокий разведчик. Голова — фонарь с единственным глазом." },
         };
 
         public static readonly Dictionary<FullScreenMode, string> WindowModeNames = new()

@@ -25,6 +25,8 @@ namespace YourFinalOrder.Player
         PlayerState spectateTarget;
 
         public PlayerState SpectateTarget => spectateTarget;
+        /// <summary>Наклон взгляда (у владельца — локальный, у остальных — из сети).</summary>
+        public float LookPitch => IsOwner && fpc != null ? fpc.Pitch : pitch.Value;
 
         public override void OnNetworkSpawn()
         {
@@ -43,9 +45,10 @@ namespace YourFinalOrder.Player
                 SetCursorLocked(true);
                 if (playerCamera != null) playerCamera.fieldOfView = GameSettings.FieldOfView;
                 GameSettings.Changed += ApplySettings;
-                // Своё тело не мешает обзору, но отбрасывает тень
-                foreach (var r in bodyRenderers)
-                    if (r != null) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
+                // Своё тело не мешает обзору, но отбрасывает тень (модель робота — см. RobotAppearance)
+                if (bodyRenderers != null)
+                    foreach (var r in bodyRenderers)
+                        if (r != null) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
             }
         }
 

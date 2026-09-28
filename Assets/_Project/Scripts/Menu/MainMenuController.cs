@@ -20,7 +20,7 @@ namespace YourFinalOrder.Menu
         readonly Dictionary<string, VisualElement> screens = new();
         VisualElement settingsPanel;
         Label status;
-        Label titleR, titleC;
+        VisualElement titleR, titleC;
         VisualElement playerList;
         Label lobbyCode;
         VisualElement lobbyCodeRow;
@@ -46,8 +46,8 @@ namespace YourFinalOrder.Menu
                 screens[name] = root.Q($"screen-{name}");
             settingsPanel = root.Q("settings");
             status = root.Q<Label>("status");
-            titleR = root.Q<Label>("title-r");
-            titleC = root.Q<Label>("title-c");
+            titleR = root.Q("title-r");
+            titleC = root.Q("title-c");
             playerList = root.Q("player-list");
             lobbyCode = root.Q<Label>("lobby-code");
             lobbyCodeRow = root.Q("lobby-code-row");
@@ -306,9 +306,9 @@ namespace YourFinalOrder.Menu
             glitchTimer -= Time.deltaTime;
             if (glitchTimer <= 0f)
             {
-                bool on = titleR.style.opacity.value < 0.5f && UnityEngine.Random.value < 0.8f;
-                titleR.style.opacity = on ? 1f : 0f;
-                titleC.style.opacity = on ? 1f : 0f;
+                bool on = titleR.style.opacity.value < 0.3f && UnityEngine.Random.value < 0.8f;
+                titleR.style.opacity = on ? 0.6f : 0f;
+                titleC.style.opacity = on ? 0.6f : 0f;
                 if (on)
                 {
                     float dx = UnityEngine.Random.Range(3f, 7f);
@@ -519,10 +519,39 @@ namespace YourFinalOrder.Menu
             Content.Add(preview);
 
             Group("Робот");
-            var robots = GameSettings.RobotNames.Keys.ToList();
-            AddDropdown("Модель", robots.Select(r => GameSettings.RobotNames[r]).ToList(),
-                robots.IndexOf(GameSettings.Robot), i => GameSettings.Robot = robots[i]);
-            var note = new Label("Модели роботов появятся в следующих версиях — выбор уже сохраняется.");
+            var cards = new VisualElement();
+            cards.AddToClassList("robot-cards");
+            var all = new List<VisualElement>();
+            foreach (var robot in GameSettings.RobotNames.Keys)
+            {
+                var card = new VisualElement();
+                card.AddToClassList("robot-card");
+                var image = new VisualElement();
+                image.AddToClassList("robot-card__image");
+                image.AddToClassList($"robot-card__image--{robot.ToString().ToLowerInvariant()}");
+                card.Add(image);
+                var title = new Label(GameSettings.RobotTitles[robot]);
+                title.AddToClassList("robot-card__name");
+                card.Add(title);
+                var desc = new Label(GameSettings.RobotNames[robot]);
+                desc.AddToClassList("robot-card__desc");
+                card.Add(desc);
+                if (robot == GameSettings.Robot) card.AddToClassList("robot-card--selected");
+
+                var chosen = robot;
+                card.RegisterCallback<ClickEvent>(_ =>
+                {
+                    ui.PlayOneShot(ProceduralAudio.UiClick);
+                    GameSettings.Robot = chosen;
+                    foreach (var c in all) c.RemoveFromClassList("robot-card--selected");
+                    card.AddToClassList("robot-card--selected");
+                });
+                card.RegisterCallback<MouseEnterEvent>(_ => ui.PlayOneShot(ProceduralAudio.UiHover, 0.6f));
+                all.Add(card);
+                cards.Add(card);
+            }
+            Content.Add(cards);
+            var note = new Label("Модель видят все игроки. Удерживайте V, чтобы говорить: антенна робота закрутится.");
             note.AddToClassList("hint");
             Content.Add(note);
         }

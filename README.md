@@ -4,7 +4,7 @@
 развозят посылки по уровням в стиле Backrooms. Полный дизайн игры — в [docs/GDD.md](docs/GDD.md),
 игра с друзьями через Steam — в [docs/STEAM.md](docs/STEAM.md).
 
-![Шаттл](docs/renders/shuttle_preview.png)
+![Your Last Order](Branding/logo_dark.png)
 
 ## Скачать и играть
 Готовая сборка для Windows: **[Releases → YourLastOrder-Windows.zip](https://github.com/german122lol44466-max/YourFinalOrder/releases/latest)**.
@@ -22,8 +22,14 @@
   микрофон; вид прицела с превью; модель робота.
 - **Старт смены**: хост нажимает «Начать смену», все переносятся в грузовой отсек шаттла
   и появляются там роботами от первого лица. Есть фонарик, выносливость, пауза и выход в меню.
-- **Модель шаттла из Blender**: `Tools/Blender/build_shuttle.py` строит её, запекает грязную текстуру
-  и экспортирует FBX.
+- **Три робота на выбор** («Консерва», «Тостер», «Фонарь»): выбираются в настройках карточками,
+  модель видят все игроки. Руки качаются при ходьбе, голова поворачивается за взглядом,
+  светящееся «лицо» барахлит (сильнее рядом с монстром), а антенна крутится, пока игрок говорит (V).
+- **Модели из Blender**: шаттл (`Tools/Blender/build_shuttle.py`) и роботы (`Tools/Blender/build_robots.py`)
+  строятся скриптами с запечёнными грязными текстурами.
+- **Логотип и аватарка**: `Branding/` (исходники — `Tools/Branding/build_logo.mjs`).
+
+![Роботы](docs/renders/robots_lineup.png)
 
 ## Первый запуск
 1. Установите **Unity 6000.0 LTS** (Unity 6) и **Git** (нужен, чтобы Unity скачал пакет Steamworks.NET).
@@ -64,8 +70,18 @@ docs/             дизайн-документ, инструкция по Steam
 steam_appid.txt   480 — тестовый App ID Steam (Spacewar), пока нет своего
 ```
 
-## Blender
-Модель шаттла пересобирается командой (Blender 4.x/5.x):
+## Blender и графика
+Модели пересобираются командами (Blender 4.x/5.x):
 ```
 blender --background --python Tools/Blender/build_shuttle.py -- --preview
+blender --background --python Tools/Blender/build_robots.py -- --preview
 ```
+Логотип и аватарка (нужны Node.js и Playwright):
+```
+node Tools/Branding/build_logo.mjs
+```
+| Файл | Для чего |
+|---|---|
+| `Branding/logo.png` | логотип на прозрачном фоне |
+| `Branding/logo_dark.png` | логотип на тёмном фоне (для постов) |
+| `Branding/avatar.png`, `avatar_184.png` | аватарка / иконка (184×184 — для Steam-группы) |

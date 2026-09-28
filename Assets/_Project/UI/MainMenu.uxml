@@ -6,15 +6,11 @@
 
         <ui:VisualElement name="side" class="side">
             <ui:VisualElement name="brand" class="brand">
-                <ui:VisualElement class="title-wrap">
-                    <ui:Label name="title-r" text="YOUR LAST ORDER" class="title title-ghost title-r" />
-                    <ui:Label name="title-c" text="YOUR LAST ORDER" class="title title-ghost title-c" />
-                    <ui:Label name="title" text="YOUR LAST ORDER" class="title" />
+                <ui:VisualElement class="logo-wrap">
+                    <ui:VisualElement name="title-r" class="logo logo-ghost logo-r" picking-mode="Ignore" />
+                    <ui:VisualElement name="title-c" class="logo logo-ghost logo-c" picking-mode="Ignore" />
+                    <ui:VisualElement name="title" class="logo" picking-mode="Ignore" />
                 </ui:VisualElement>
-                <ui:VisualElement class="tape">
-                    <ui:Label text="ТВОЙ ПОСЛЕДНИЙ ЗАКАЗ" class="subtitle" />
-                </ui:VisualElement>
-                <ui:Label text="курьерская служба «You Can Buy Everything» · возвратов нет" class="tagline" />
             </ui:VisualElement>
 
             <!-- Главный экран -->
