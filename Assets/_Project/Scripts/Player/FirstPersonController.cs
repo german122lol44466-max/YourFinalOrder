@@ -1,4 +1,5 @@
 using UnityEngine;
+using YourFinalOrder.Core;
 
 namespace YourFinalOrder.Player
 {
@@ -31,7 +32,6 @@ namespace YourFinalOrder.Player
 
         [Header("Обзор")]
         public Transform cameraRoot;
-        public float mouseSensitivity = 2f;
         public float maxPitch = 85f;
 
         public bool InputEnabled { get; set; } = true;
@@ -64,8 +64,9 @@ namespace YourFinalOrder.Player
 
         void Look()
         {
-            float mx = Input.GetAxis("Mouse X") * mouseSensitivity;
-            float my = Input.GetAxis("Mouse Y") * mouseSensitivity;
+            float sens = GameSettings.Sensitivity;
+            float mx = Input.GetAxis("Mouse X") * sens;
+            float my = Input.GetAxis("Mouse Y") * sens * (GameSettings.InvertY ? -1f : 1f);
             transform.Rotate(0f, mx, 0f);
             pitch = Mathf.Clamp(pitch - my, -maxPitch, maxPitch);
             if (cameraRoot != null) cameraRoot.localRotation = Quaternion.Euler(pitch, 0f, 0f);

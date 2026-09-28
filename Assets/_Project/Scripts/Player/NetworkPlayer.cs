@@ -1,5 +1,6 @@
 using Unity.Netcode;
 using UnityEngine;
+using YourFinalOrder.Core;
 
 namespace YourFinalOrder.Player
 {
@@ -39,8 +40,9 @@ namespace YourFinalOrder.Player
             if (owner)
             {
                 Local = this;
-                MenuCamera.SetActive(false);
                 SetCursorLocked(true);
+                if (playerCamera != null) playerCamera.fieldOfView = GameSettings.FieldOfView;
+                GameSettings.Changed += ApplySettings;
                 // Своё тело не мешает обзору, но отбрасывает тень
                 foreach (var r in bodyRenderers)
                     if (r != null) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
@@ -52,12 +54,17 @@ namespace YourFinalOrder.Player
             if (Local == this)
             {
                 Local = null;
-                MenuCamera.SetActive(true);
                 SetCursorLocked(false);
+                GameSettings.Changed -= ApplySettings;
             }
         }
 
-        static void SetCursorLocked(bool locked)
+        void ApplySettings()
+        {
+            if (playerCamera != null) playerCamera.fieldOfView = GameSettings.FieldOfView;
+        }
+
+        public static void SetCursorLocked(bool locked)
         {
             Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !locked;

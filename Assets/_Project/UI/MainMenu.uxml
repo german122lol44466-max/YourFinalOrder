@@ -1,0 +1,90 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="MainMenu.uss" />
+    <ui:VisualElement name="root" class="root" picking-mode="Ignore">
+        <ui:VisualElement name="shade" class="shade" picking-mode="Ignore" />
+        <ui:VisualElement name="scanlines" class="scanlines" picking-mode="Ignore" />
+
+        <ui:VisualElement name="side" class="side">
+            <ui:VisualElement name="brand" class="brand">
+                <ui:VisualElement class="title-wrap">
+                    <ui:Label name="title-r" text="YOUR LAST ORDER" class="title title-ghost title-r" />
+                    <ui:Label name="title-c" text="YOUR LAST ORDER" class="title title-ghost title-c" />
+                    <ui:Label name="title" text="YOUR LAST ORDER" class="title" />
+                </ui:VisualElement>
+                <ui:VisualElement class="tape">
+                    <ui:Label text="ТВОЙ ПОСЛЕДНИЙ ЗАКАЗ" class="subtitle" />
+                </ui:VisualElement>
+                <ui:Label text="курьерская служба «You Can Buy Everything» · возвратов нет" class="tagline" />
+            </ui:VisualElement>
+
+            <!-- Главный экран -->
+            <ui:VisualElement name="screen-main" class="screen">
+                <ui:Button name="btn-play" text="Играть с друзьями" class="menu-button" />
+                <ui:Button name="btn-settings" text="Настройки" class="menu-button" />
+                <ui:Button name="btn-quit" text="Выход" class="menu-button menu-button--dim" />
+            </ui:VisualElement>
+
+            <!-- Выбор режима -->
+            <ui:VisualElement name="screen-play" class="screen hidden">
+                <ui:Label text="STEAM" class="section" />
+                <ui:Button name="btn-host-steam" text="Создать лобби" class="menu-button" />
+                <ui:VisualElement class="row">
+                    <ui:TextField name="field-lobby-code" class="field grow" />
+                    <ui:Button name="btn-join-code" text="Войти по коду" class="small-button" />
+                </ui:VisualElement>
+                <ui:Label text="Или примите приглашение друга в Steam — игра подключится сама." class="hint" />
+
+                <ui:Label text="ПО IP (LAN / VPN)" class="section" />
+                <ui:VisualElement class="row">
+                    <ui:TextField name="field-ip" value="127.0.0.1" class="field grow" />
+                    <ui:TextField name="field-port" value="7777" class="field port" />
+                </ui:VisualElement>
+                <ui:VisualElement class="row">
+                    <ui:Button name="btn-host-lan" text="Создать" class="small-button grow" />
+                    <ui:Button name="btn-join-lan" text="Подключиться" class="small-button grow" />
+                </ui:VisualElement>
+                <ui:Button name="btn-play-back" text="Назад" class="menu-button menu-button--dim" />
+            </ui:VisualElement>
+
+            <!-- Лобби -->
+            <ui:VisualElement name="screen-lobby" class="screen hidden">
+                <ui:Label name="lobby-title" text="ЛОББИ" class="section" />
+                <ui:VisualElement name="lobby-code-row" class="row">
+                    <ui:Label name="lobby-code" text="Код: —" class="code grow" />
+                    <ui:Button name="btn-copy-code" text="Копировать" class="small-button" />
+                </ui:VisualElement>
+                <ui:VisualElement name="player-list" class="player-list" />
+                <ui:Button name="btn-invite" text="Пригласить друзей" class="menu-button" />
+                <ui:Button name="btn-start" text="Начать смену" class="menu-button menu-button--accent" />
+                <ui:Label name="lobby-wait" text="Ждём, пока хост начнёт смену..." class="hint" />
+                <ui:Button name="btn-leave" text="Покинуть лобби" class="menu-button menu-button--dim" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- Настройки -->
+        <ui:VisualElement name="settings" class="settings hidden">
+            <ui:VisualElement class="settings-header">
+                <ui:Label text="НАСТРОЙКИ" class="settings-title" />
+                <ui:VisualElement name="tabs" class="tabs" />
+            </ui:VisualElement>
+            <ui:ScrollView name="settings-content" class="settings-content" />
+            <ui:VisualElement class="settings-footer">
+                <ui:Button name="btn-settings-back" text="Готово" class="small-button" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:Label name="status" class="status hidden" />
+
+        <ui:VisualElement class="footer" picking-mode="Ignore">
+            <ui:Label name="steam-status" class="footer-text" />
+            <ui:Label name="reality" class="footer-text reality" />
+            <ui:Label name="version" class="footer-text" />
+        </ui:VisualElement>
+
+        <!-- Экран загрузки -->
+        <ui:VisualElement name="loading" class="loading hidden">
+            <ui:Label name="loading-title" text="ПРЫЖОК МЕЖДУ РЕАЛЬНОСТЯМИ" class="loading-title" />
+            <ui:Label name="loading-log" class="loading-log" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

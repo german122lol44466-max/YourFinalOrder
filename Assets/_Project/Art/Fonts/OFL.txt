@@ -1,0 +1,5 @@
+Шрифты в этой папке распространяются по лицензии SIL Open Font License 1.1
+(https://openfontlicense.org). Источник: Google Fonts.
+
+- Black Ops One — James Grieshaber
+- Russo One — Jovanny Lemonad

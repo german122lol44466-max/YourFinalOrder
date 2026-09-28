@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace YourFinalOrder.Environment
+namespace YourFinalOrder.World
 {
     /// <summary>
     /// Мерцающая лампа с редкими полными отключениями. Чисто локальный эффект.
