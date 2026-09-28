@@ -1,0 +1,109 @@
+# Собирает Windows-версию игры и публикует её в Releases.
+# Нужны секреты репозитория (один раз, см. docs/BUILD.md):
+#   UNITY_LICENSE  — содержимое файла Unity_lic.ulf
+#   UNITY_EMAIL    — почта аккаунта Unity
+#   UNITY_PASSWORD — пароль аккаунта Unity
+name: Сборка игры
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "claude/practical-cray-cl47x7", "main" ]
+    paths:
+      - "Assets/**"
+      - "Packages/**"
+      - "ProjectSettings/**"
+      - "steam_appid.txt"
+      - "docs/HOW_TO_PLAY.txt"
+      - ".github/workflows/build.yml"
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      ok: ${{ steps.license.outputs.ok }}
+    steps:
+      - id: license
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          if [ -n "$UNITY_LICENSE" ] && [ -n "$UNITY_EMAIL" ] && [ -n "$UNITY_PASSWORD" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Сборка пропущена: не заданы секреты UNITY_LICENSE, UNITY_EMAIL, UNITY_PASSWORD (см. docs/BUILD.md)"
+          fi
+
+  build-windows:
+    needs: check
+    if: needs.check.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    steps:
+      - name: Освободить место на диске
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          tool-cache: false
+
+      - uses: actions/checkout@v4
+
+      - name: Кэш Library
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-Win64-${{ hashFiles('Packages/packages-lock.json', 'Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt') }}
+          restore-keys: Library-Win64-
+
+      - name: Сборка в Unity
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: StandaloneWindows64
+          buildName: YourLastOrder
+          buildMethod: YourFinalOrder.EditorTools.CiBuild.BuildWindows
+          versioning: None
+          allowDirtyBuild: true
+
+      - name: Упаковать
+        run: |
+          sudo chown -R "$(id -u):$(id -g)" build
+          cd build/StandaloneWindows64
+          rm -rf *_BurstDebugInformation_DoNotShip *_BackUpThisFolder_ButDontShipItWithYourGame
+          ls -la
+          test -f YourLastOrder.exe
+          test -f steam_appid.txt
+          mkdir -p "../YourLastOrder"
+          cp -r . "../YourLastOrder/"
+          cd ..
+          zip -qr "../YourLastOrder-Windows.zip" YourLastOrder
+          ls -la ..
+
+      - name: Опубликовать в Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "Your Last Order — сборка #${{ github.run_number }}"
+          make_latest: true
+          files: YourLastOrder-Windows.zip
+          body: |
+            **Как играть:** скачайте `YourLastOrder-Windows.zip`, распакуйте, запустите Steam и затем `YourLastOrder.exe`.
+
+            Игра с друзьями: хост → «Играть с друзьями» → «Создать лобби» → «Копировать» код и отправить друзьям.
+            Друзья → «Играть с друзьями» → вставить код → «Войти по коду». У всех должна быть одна и та же сборка.
+
+            Коммит: ${{ github.sha }}

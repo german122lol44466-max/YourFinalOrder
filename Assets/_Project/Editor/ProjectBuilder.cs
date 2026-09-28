@@ -38,31 +38,34 @@ namespace YourFinalOrder.EditorTools
         const string ShuttleDir = Root + "/Art/Models/Shuttle";
 
         [MenuItem("Your Last Order/Собрать проект", priority = 0)]
-        public static void BuildAll()
+        public static void BuildAll() => Generate(interactive: true);
+
+        /// <summary>Создаёт все сцены и ассеты. interactive=false — без окон (сборка в облаке).</summary>
+        public static void Generate(bool interactive)
         {
-            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+            if (interactive && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
 
             try
             {
-                EditorUtility.DisplayProgressBar("Your Last Order", "Настройки проекта...", 0.05f);
+                if (interactive) EditorUtility.DisplayProgressBar("Your Last Order", "Настройки проекта...", 0.05f);
                 EnsureFolder(Gen);
                 EnsureFolder(ScenesDir);
                 SetupRenderPipeline();
                 SetupPlayerSettings();
 
-                EditorUtility.DisplayProgressBar("Your Last Order", "Материалы...", 0.2f);
+                if (interactive) EditorUtility.DisplayProgressBar("Your Last Order", "Материалы...", 0.2f);
                 var mats = new MaterialSet();
                 SetupShuttleImport(mats);
 
-                EditorUtility.DisplayProgressBar("Your Last Order", "Префабы...", 0.4f);
+                if (interactive) EditorUtility.DisplayProgressBar("Your Last Order", "Префабы...", 0.4f);
                 var player = BuildPlayerPrefab(mats);
                 var prefabList = BuildPrefabList(player);
                 var networkRoot = BuildNetworkRoot(prefabList);
 
-                EditorUtility.DisplayProgressBar("Your Last Order", "Сцена меню...", 0.6f);
+                if (interactive) EditorUtility.DisplayProgressBar("Your Last Order", "Сцена меню...", 0.6f);
                 BuildMenuScene(networkRoot, mats);
 
-                EditorUtility.DisplayProgressBar("Your Last Order", "Сцена игры...", 0.8f);
+                if (interactive) EditorUtility.DisplayProgressBar("Your Last Order", "Сцена игры...", 0.8f);
                 BuildGameScene(networkRoot, player, mats);
 
                 EditorBuildSettings.scenes = new[]
@@ -77,6 +80,7 @@ namespace YourFinalOrder.EditorTools
                 EditorUtility.ClearProgressBar();
             }
 
+            if (!interactive) return;
             EditorSceneManager.OpenScene(MenuScenePath);
             EditorUtility.DisplayDialog("Your Last Order",
                 "Проект собран.\n\nСцена меню открыта — нажмите Play.\n" +

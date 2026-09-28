@@ -11,6 +11,8 @@ namespace YourFinalOrder.EditorTools
     /// </summary>
     public class SteamAppIdPostBuild : IPostprocessBuildWithReport
     {
+        const string HowToPlay = "docs/HOW_TO_PLAY.txt";
+
         public int callbackOrder => 0;
 
         public void OnPostprocessBuild(BuildReport report)
@@ -20,10 +22,10 @@ namespace YourFinalOrder.EditorTools
                 target != BuildTarget.StandaloneLinux64 && target != BuildTarget.StandaloneOSX)
                 return;
 
-            string source = "steam_appid.txt";
-            if (!File.Exists(source)) return;
             string dir = Path.GetDirectoryName(report.summary.outputPath);
-            File.Copy(source, Path.Combine(dir, "steam_appid.txt"), true);
+            string source = "steam_appid.txt";
+            if (File.Exists(source)) File.Copy(source, Path.Combine(dir, "steam_appid.txt"), true);
+            if (File.Exists(HowToPlay)) File.Copy(HowToPlay, Path.Combine(dir, "КАК ИГРАТЬ.txt"), true);
         }
     }
 }

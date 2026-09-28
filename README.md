@@ -6,6 +6,11 @@
 
 ![Шаттл](docs/renders/shuttle_preview.png)
 
+## Скачать и играть
+Готовая сборка для Windows: **[Releases → YourLastOrder-Windows.zip](https://github.com/german122lol44466-max/YourFinalOrder/releases/latest)**.
+Распакуйте архив, запустите Steam, затем `YourLastOrder.exe`. Unity для этого не нужен.
+Сборки создаются автоматически (см. [docs/BUILD.md](docs/BUILD.md)).
+
 ## Что уже есть
 - **Главное меню** (UI Toolkit). На фоне — грязный шаттл курьерской службы летит сквозь космос от третьего лица:
   пламя реактора, звёзды на варп-скорости, туманности. Каждые ~16 с шаттл «прыгает» в другую
