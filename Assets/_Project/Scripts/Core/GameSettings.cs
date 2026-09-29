@@ -62,9 +62,9 @@ namespace YourFinalOrder.Core
 
         public static readonly Dictionary<RobotModel, string> RobotNames = new()
         {
-            { RobotModel.Can, "Купольный курьер с окулярами. Ржавый, но надёжный." },
-            { RobotModel.Toaster, "Грузчик с ЭЛТ-монитором вместо головы. Моргает пикселями." },
-            { RobotModel.Lantern, "Высокий разведчик. Голова — фонарь с единственным глазом." },
+            { RobotModel.Can, "К-07. Коренастый курьер в хаки: шлем-яйцо, бак-батарея на спине." },
+            { RobotModel.Toaster, "Т-12. Грузчик с квадратной головой-экраном и тостером за спиной." },
+            { RobotModel.Lantern, "Ф-03. Худой разведчик: голова спрятана в ржавой клетке-фонаре." },
         };
 
         public static readonly Dictionary<FullScreenMode, string> WindowModeNames = new()

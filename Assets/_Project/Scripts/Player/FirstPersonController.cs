@@ -21,8 +21,8 @@ namespace YourFinalOrder.Player
         [Header("Приседание")]
         public float standHeight = 1.8f;
         public float crouchHeight = 1.1f;
-        public float standCameraY = 1.6f;
-        public float crouchCameraY = 0.95f;
+        public float standCameraY = 1.66f;
+        public float crouchCameraY = 1.15f;
 
         [Header("Выносливость")]
         public float maxStamina = 5f;

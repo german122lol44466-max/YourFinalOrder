@@ -43,3 +43,7 @@ crashlytics-build.properties
 # OS
 .DS_Store
 Thumbs.db
+
+# Исходники анимаций Mixamo не публикуем (условия Adobe) — положите свои файлы сюда локально
+Tools/Blender/mocap/*.fbx
+__pycache__/

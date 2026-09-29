@@ -8,51 +8,68 @@ using YourFinalOrder.Core;
 namespace YourFinalOrder.Player
 {
     /// <summary>
-    /// Модель робота игрока: выбирается в настройках и синхронизируется по сети.
-    /// Анимирует детали из FBX (Tools/Blender/build_robots.py): покачивание корпуса, руки при ходьбе,
-    /// голову за взглядом, антенну при разговоре и барахлящее светящееся «лицо».
+    /// Человекоподобный робот игрока (скелет + анимации из Tools/Blender/build_robots.py).
+    /// Модель выбирается в настройках и синхронизируется по сети. Animator проигрывает
+    /// стойку/ходьбу/бег/присед по скорости; поверх — поворот головы за взглядом,
+    /// антенна крутится, пока игрок говорит, на визоре — анимированное лицо.
     /// </summary>
     public class RobotAppearance : NetworkBehaviour
     {
         [Tooltip("Модели в порядке перечисления RobotModel: Can, Toaster, Lantern")]
         public GameObject[] models;
-        [Tooltip("Ожидаемая высота моделей (с антенной) — для страховки от неверного масштаба FBX")]
-        public float[] expectedHeights = { 1.83f, 1.99f, 2.13f };
+        public RuntimeAnimatorController animator;
+        [Tooltip("Ожидаемая высота модели с антенной — страховка от неверного масштаба FBX")]
+        public float expectedHeight = 1.94f;
         public Transform bodyRoot;
-        public Color faceColor = new(0.3f, 1f, 0.5f);
-        public float faceIntensity = 4f;
+        public Color faceColor = Color.white;
+        public float faceIntensity = 2.2f;
         public KeyCode talkKey = KeyCode.V;
+
+        [Header("Скорости клипов (м/с) — для синхронизации шагов")]
+        public float walkClipSpeed = 1.67f;
+        public float runClipSpeed = 4.75f;
+        public float crouchClipSpeed = 1.4f;
 
         readonly NetworkVariable<byte> model = new(0,
             NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         readonly NetworkVariable<bool> talking = new(false,
             NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+        readonly NetworkVariable<bool> crouching = new(false,
+            NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
 
         public bool IsTalking => talking.Value;
         public IReadOnlyList<Renderer> Renderers => renderers;
 
-        GameObject instance;
-        readonly List<Renderer> renderers = new();
-        Transform head, armL, armR, antenna;
-        Quaternion headBase, armLBase, armRBase;
-        Renderer face;
-        MaterialPropertyBlock faceBlock;
-        Texture2D screen;
-        float screenTimer, blinkTimer = 2f, glitchTimer;
-        Vector3 instanceBase;
-        Vector3 lastPos;
-        float speed, walkPhase, antennaSpeed;
-        bool visible = true;
-        NetworkPlayer player;
-
+        static readonly int SpeedParam = Animator.StringToHash("Speed");
+        static readonly int CrouchParam = Animator.StringToHash("Crouch");
         static readonly int EmissionColor = Shader.PropertyToID("_EmissionColor");
-        static readonly int BaseMap = Shader.PropertyToID("_BaseMap");
         static readonly int EmissionMap = Shader.PropertyToID("_EmissionMap");
+        static readonly int BaseMap = Shader.PropertyToID("_BaseMap");
+
+        GameObject instance;
+        Animator anim;
+        readonly List<Renderer> renderers = new();
+        Transform head, antenna;
+        Renderer visorRenderer;
+        int visorIndex = -1;
+        MaterialPropertyBlock block;
+        RobotFace face;
+        NetworkPlayer player;
+        PlayerState state;
+        FirstPersonController fpc;
+        Vector3 lastPos;
+        float speed, antennaAngle, antennaSpeed, talkLevel;
+        bool visible = true;
 
         public override void OnNetworkSpawn()
         {
             player = GetComponent<NetworkPlayer>();
+            state = GetComponent<PlayerState>();
+            fpc = GetComponent<FirstPersonController>();
             if (bodyRoot == null) bodyRoot = transform;
+            block = new MaterialPropertyBlock();
+            face = new RobotFace((int)(NetworkObjectId * 7919 % int.MaxValue));
+
             model.OnValueChanged += OnModelChanged;
             if (IsOwner)
             {
@@ -67,7 +84,7 @@ namespace YourFinalOrder.Player
         {
             model.OnValueChanged -= OnModelChanged;
             GameSettings.Changed -= OnSettingsChanged;
-            if (screen != null) Destroy(screen);
+            face?.Dispose();
         }
 
         void OnSettingsChanged()
@@ -83,8 +100,9 @@ namespace YourFinalOrder.Player
         {
             if (instance != null) Destroy(instance);
             renderers.Clear();
-            head = armL = armR = antenna = null;
-            face = null;
+            head = antenna = null;
+            visorRenderer = null;
+            visorIndex = -1;
             if (models == null || models.Length == 0) return;
             index = Mathf.Clamp(index, 0, models.Length - 1);
             if (models[index] == null) return;
@@ -94,43 +112,41 @@ namespace YourFinalOrder.Player
             instance.transform.localPosition = Vector3.zero;
             instance.transform.localRotation = Quaternion.identity;
             instance.transform.localScale = Vector3.one;
-            Align(instance.transform, index);
-            instanceBase = instance.transform.localPosition;
+            Align(instance.transform);
 
-            head = Find("Head");
-            armL = Find("ArmL");
-            armR = Find("ArmR");
-            antenna = Find("Antenna");
-            var faceT = Find("Face");
-            face = faceT != null ? faceT.GetComponent<Renderer>() : null;
-            if (head) headBase = head.localRotation;
-            if (armL) armLBase = armL.localRotation;
-            if (armR) armRBase = armR.localRotation;
+            head = FindDeep(instance.transform, "Head");
+            antenna = FindDeep(instance.transform, "Antenna");
+
+            anim = instance.GetComponentInChildren<Animator>();
+            if (anim == null) anim = instance.AddComponent<Animator>();
+            anim.runtimeAnimatorController = animator;
+            anim.applyRootMotion = false;
+            anim.cullingMode = AnimatorCullingMode.AlwaysAnimate;
 
             instance.GetComponentsInChildren(renderers);
             foreach (var r in renderers)
             {
+                // своё тело не мешает обзору, но отбрасывает тень
                 r.shadowCastingMode = IsOwner ? ShadowCastingMode.ShadowsOnly : ShadowCastingMode.On;
                 r.enabled = visible;
-            }
-
-            faceBlock ??= new MaterialPropertyBlock();
-            // «Тостеру» рисуем глаза на экране
-            if (index == (int)RobotModel.Toaster && face != null)
-            {
-                if (screen == null)
+                if (r is SkinnedMeshRenderer smr) smr.updateWhenOffscreen = true;
+                var mats = r.sharedMaterials;
+                for (int i = 0; i < mats.Length; i++)
                 {
-                    screen = new Texture2D(48, 32, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+                    if (mats[i] != null && mats[i].name.Contains("Visor"))
+                    {
+                        visorRenderer = r;
+                        visorIndex = i;
+                    }
                 }
-                DrawScreen(false, 0);
             }
         }
 
         /// <summary>
-        /// Выравнивает модель по пустышкам Front и Top: Front — вперёд (+Z), Top — вверх.
-        /// Так модель стоит правильно независимо от настроек осей при импорте FBX.
+        /// Выравнивает модель по пустышкам Front (вперёд) и Top (вверх), подгоняет масштаб и ставит на землю.
+        /// Так модель стоит правильно при любых настройках осей FBX.
         /// </summary>
-        void Align(Transform t, int index)
+        void Align(Transform t)
         {
             var front = FindDeep(t, "Front");
             var top = FindDeep(t, "Top");
@@ -142,23 +158,13 @@ namespace YourFinalOrder.Player
                     t.localRotation = Quaternion.Inverse(Quaternion.LookRotation(f, u));
             }
 
-            // Страховка от неверного масштаба (например, ×100 при импорте)
             var rs = t.GetComponentsInChildren<Renderer>();
             if (rs.Length == 0) return;
             var b = rs[0].bounds;
             foreach (var r in rs) b.Encapsulate(r.bounds);
-            float expected = index < expectedHeights.Length ? expectedHeights[index] : 1.8f;
-            float h = b.size.y;
-            if (h > 0.01f && Mathf.Abs(h / expected - 1f) > 0.25f)
-                t.localScale *= expected / h;
-
-            // ноги — на уровне земли
-            b = rs[0].bounds;
-            foreach (var r in rs) b.Encapsulate(r.bounds);
-            t.position += Vector3.up * (bodyRoot.position.y - b.min.y);
+            if (b.size.y > 0.01f && Mathf.Abs(b.size.y / expectedHeight - 1f) > 0.25f)
+                t.localScale *= expectedHeight / b.size.y;
         }
-
-        Transform Find(string name) => instance != null ? FindDeep(instance.transform, name) : null;
 
         static Transform FindDeep(Transform root, string name)
         {
@@ -185,113 +191,75 @@ namespace YourFinalOrder.Player
             {
                 bool talk = Input.GetKey(talkKey) && Cursor.lockState == CursorLockMode.Locked;
                 if (talking.Value != talk) talking.Value = talk;
+                bool crouch = fpc != null && fpc.IsCrouching;
+                if (crouching.Value != crouch) crouching.Value = crouch;
             }
 
-            // скорость по перемещению — одинаково для своих и чужих
+            // скорость по перемещению — одинаково для своих и чужих игроков
             var delta = transform.position - lastPos;
             lastPos = transform.position;
             delta.y = 0f;
             float s = delta.magnitude / dt;
             if (s > 15f) s = 0f; // телепорт
-            speed = Mathf.Lerp(speed, s, dt * 8f);
-            float move = Mathf.Clamp01(speed / 5f);
-            walkPhase += dt * Mathf.Lerp(0f, 11f, move);
+            speed = Mathf.Lerp(speed, s, dt * 10f);
 
-            // покачивание корпуса
-            instance.transform.localPosition = instanceBase + Vector3.up * (Mathf.Abs(Mathf.Sin(walkPhase)) * 0.04f * move);
+            if (anim != null && anim.runtimeAnimatorController != null)
+            {
+                bool crouch = crouching.Value;
+                anim.SetBool(CrouchParam, crouch);
+                anim.SetFloat(SpeedParam, speed, 0.1f, dt);
+                // шаги в такт движению: клип ускоряется/замедляется под реальную скорость
+                float nominal = crouch ? crouchClipSpeed
+                    : speed <= walkClipSpeed ? walkClipSpeed
+                    : Mathf.Lerp(walkClipSpeed, runClipSpeed, Mathf.InverseLerp(walkClipSpeed, runClipSpeed, speed));
+                anim.speed = speed < 0.3f ? 1f : Mathf.Clamp(speed / nominal, 0.7f, 1.4f);
+            }
 
-            // руки
-            float swing = Mathf.Sin(walkPhase) * 32f * move;
-            float idle = Mathf.Sin(Time.time * 1.3f) * 2f;
-            if (armL) armL.localRotation = armLBase * Quaternion.Euler(swing + idle, 0f, 0f);
-            if (armR) armR.localRotation = armRBase * Quaternion.Euler(-swing + idle, 0f, 0f);
-
-            // голова за взглядом
-            if (head && player != null)
-                head.localRotation = headBase * Quaternion.Euler(Mathf.Clamp(player.LookPitch, -40f, 40f) * 0.7f, 0f, 0f);
-
-            // антенна: крутится, пока игрок говорит
-            antennaSpeed = Mathf.MoveTowards(antennaSpeed, talking.Value ? 900f : 0f, dt * 1500f);
-            if (antenna && antennaSpeed > 0.1f) antenna.Rotate(Vector3.up, antennaSpeed * dt, Space.Self);
-
+            talkLevel = Mathf.MoveTowards(talkLevel, talking.Value ? 0.4f + 0.6f * Mathf.PerlinNoise(Time.time * 9f, NetworkObjectId) : 0f, dt * 6f);
             UpdateFace(dt);
+        }
+
+        void LateUpdate()
+        {
+            if (!IsSpawned || instance == null) return;
+
+            // голова смотрит туда же, куда игрок (поверх анимации)
+            if (head != null && player != null && (state == null || state.IsAlive))
+            {
+                float pitch = Mathf.Clamp(player.LookPitch, -45f, 45f) * 0.75f;
+                head.rotation = Quaternion.AngleAxis(pitch, transform.right) * head.rotation;
+            }
+
+            // антенна крутится, пока игрок говорит
+            antennaSpeed = Mathf.MoveTowards(antennaSpeed, talking.Value ? 1080f : 0f, Time.deltaTime * 1800f);
+            antennaAngle = (antennaAngle + antennaSpeed * Time.deltaTime) % 360f;
+            if (antenna != null && head != null)
+                antenna.rotation = Quaternion.AngleAxis(antennaAngle, head.up) * antenna.rotation;
         }
 
         void UpdateFace(float dt)
         {
-            if (face == null) return;
+            if (visorRenderer == null || face == null) return;
 
-            // страх: рядом монстр — лицо барахлит сильнее
             float fear = 0f;
             if (MonsterAI.Instance != null)
-                fear = 1f - Mathf.Clamp01(Vector3.Distance(MonsterAI.Instance.transform.position, transform.position) / 15f);
+                fear = 1f - Mathf.Clamp01(Vector3.Distance(MonsterAI.Instance.transform.position, transform.position) / 14f);
 
-            float k = 0.85f + 0.15f * Mathf.PerlinNoise(Time.time * 3f, transform.position.x);
-            glitchTimer -= dt;
-            if (glitchTimer <= 0f)
-            {
-                glitchTimer = Random.Range(0.05f, Mathf.Lerp(3f, 0.3f, fear));
-                if (Random.value < 0.35f + fear * 0.5f) k = Random.Range(0f, 0.3f);
-            }
-            if (talking.Value) k *= 1f + 0.35f * Mathf.Abs(Mathf.Sin(Time.time * 18f));
+            var mood = state != null && !state.IsAlive ? RobotFace.Mood.Dead
+                : fear > 0.45f ? RobotFace.Mood.Scared
+                : talking.Value ? RobotFace.Mood.Talking
+                : RobotFace.Mood.Normal;
+            face.Update(dt, mood, fear, talkLevel);
 
-            face.GetPropertyBlock(faceBlock);
-            faceBlock.SetColor(EmissionColor, faceColor * (faceIntensity * k));
+            // старый экран: лёгкое мерцание яркости, иногда проседает
+            float k = 0.9f + 0.1f * Mathf.PerlinNoise(Time.time * 4f, NetworkObjectId * 0.37f);
+            if (Mathf.PerlinNoise(Time.time * 1.7f, 3.3f + NetworkObjectId) > 0.82f) k *= 0.45f;
 
-            if (screen != null && model.Value == (byte)RobotModel.Toaster)
-            {
-                screenTimer -= dt;
-                if (screenTimer <= 0f)
-                {
-                    screenTimer = 0.08f;
-                    blinkTimer -= 0.08f;
-                    bool blink = blinkTimer < 0.12f;
-                    if (blinkTimer <= 0f) blinkTimer = Random.Range(2f, 5f);
-                    int glitchRows = Random.value < 0.15f + fear * 0.6f ? Random.Range(1, 6) : 0;
-                    DrawScreen(blink, glitchRows);
-                }
-                faceBlock.SetTexture(BaseMap, screen);
-                faceBlock.SetTexture(EmissionMap, screen);
-            }
-            face.SetPropertyBlock(faceBlock);
-        }
-
-        /// <summary>Пиксельное лицо на экране «Тостера»: два глаза, сканлайны, сдвиг строк при глитче.</summary>
-        void DrawScreen(bool blink, int glitchRows)
-        {
-            int w = screen.width, h = screen.height;
-            var px = new Color32[w * h];
-            var bg = new Color32(8, 26, 14, 255);
-            var fg = new Color32(120, 255, 150, 255);
-            for (int i = 0; i < px.Length; i++) px[i] = bg;
-
-            int eyeH = blink ? 1 : 8;
-            int talkOffset = talking.Value ? Random.Range(-1, 2) : 0;
-            foreach (int cx in new[] { 15, 33 })
-                for (int y = 16 - eyeH / 2; y < 16 + (eyeH + 1) / 2; y++)
-                for (int x = cx - 3; x <= cx + 3; x++)
-                    px[(y + talkOffset) * w + x] = fg;
-            if (talking.Value)
-                for (int x = 19; x < 29; x++) px[7 * w + x] = fg;
-
-            for (int y = 0; y < h; y += 2) // сканлайны
-            for (int x = 0; x < w; x++)
-            {
-                var c = px[y * w + x];
-                px[y * w + x] = new Color32((byte)(c.r * 0.7f), (byte)(c.g * 0.7f), (byte)(c.b * 0.7f), 255);
-            }
-
-            for (int g = 0; g < glitchRows; g++) // горизонтальный сдвиг строк
-            {
-                int row = Random.Range(0, h);
-                int shift = Random.Range(-6, 7);
-                var line = new Color32[w];
-                for (int x = 0; x < w; x++) line[x] = px[row * w + (x - shift + w) % w];
-                for (int x = 0; x < w; x++) px[row * w + x] = line[x];
-            }
-
-            screen.SetPixels32(px);
-            screen.Apply(false);
+            visorRenderer.GetPropertyBlock(block, visorIndex);
+            block.SetTexture(BaseMap, RobotFace.DirtyGlass);
+            block.SetTexture(EmissionMap, face.Texture);
+            block.SetColor(EmissionColor, faceColor * (faceIntensity * k));
+            visorRenderer.SetPropertyBlock(block, visorIndex);
         }
     }
 }

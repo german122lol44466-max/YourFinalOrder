@@ -145,7 +145,7 @@ namespace YourFinalOrder.EditorTools
         {
             public readonly Material Shuttle, ShuttleGlass, EngineGlow, Lamp;
             public readonly Material Floor, Wall, Ceiling, Metal, Cardboard, Tape, Screen, Body, Additive;
-            public readonly Material RobotFace, RobotRed, RobotGlass;
+            public readonly Material RobotFace, RobotRed, RobotGlass, RobotVisor;
 
             public MaterialSet()
             {
@@ -167,6 +167,8 @@ namespace YourFinalOrder.EditorTools
                 RobotFace = Lit("M_RobotFace", new Color(0.05f, 0.2f, 0.1f), 0f, 0.85f, null, new Color(0.3f, 1f, 0.5f) * 4f);
                 RobotRed = Lit("M_RobotRed", new Color(0.6f, 0.05f, 0.03f), 0f, 0.6f, null, new Color(1f, 0.1f, 0.05f) * 3f);
                 RobotGlass = Transparent("M_RobotGlass", new Color(0.7f, 0.85f, 0.8f, 0.25f), 0.95f);
+                // Визор-экран: базовый цвет и лицо задаёт RobotFace в рантайме (текстура + эмиссия)
+                RobotVisor = Lit("M_RobotVisor", Color.white, 0f, 0.93f, null, Color.black);
             }
 
             public static Material Lit(string name, Color color, float metallic, float smoothness, Texture2D tex, Color? emission = null)
@@ -348,22 +350,101 @@ namespace YourFinalOrder.EditorTools
                     Debug.LogWarning($"Не найден {path} — запустите Tools/Blender/build_robots.py");
                     continue;
                 }
+
+                // Карта металличности/гладкости — линейная (не sRGB)
+                string msPath = $"{RobotsDir}/Robot_{name}_MetalSmooth.png";
+                if (AssetImporter.GetAtPath(msPath) is TextureImporter msImp && msImp.sRGBTexture)
+                {
+                    msImp.sRGBTexture = false;
+                    msImp.SaveAndReimport();
+                }
                 var albedo = AssetDatabase.LoadAssetAtPath<Texture2D>($"{RobotsDir}/Robot_{name}_Albedo.png");
-                var bodyMat = MaterialSet.Lit($"M_Robot_{name}", Color.white, 0.3f, 0.35f, albedo);
+                var metalSmooth = AssetDatabase.LoadAssetAtPath<Texture2D>(msPath);
+                var bodyMat = MaterialSet.Lit($"M_Robot_{name}", Color.white, 1f, 1f, albedo);
+                if (metalSmooth != null)
+                {
+                    bodyMat.SetTexture("_MetallicGlossMap", metalSmooth);
+                    BaseShaderGUI.SetMaterialKeywords(bodyMat, LitGUI.SetMaterialKeywords);
+                }
+                else
+                {
+                    bodyMat.SetFloat("_Metallic", 0.3f);
+                    bodyMat.SetFloat("_Smoothness", 0.35f);
+                }
 
                 importer.importCameras = false;
                 importer.importLights = false;
-                importer.animationType = ModelImporterAnimationType.None;
-                importer.importAnimation = false;
+                importer.animationType = ModelImporterAnimationType.Generic;
+                importer.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
+                importer.importAnimation = true;
                 importer.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
                 importer.materialLocation = ModelImporterMaterialLocation.InPrefab;
-                foreach (var src in new[] { "Paint", "Paint2", "Rust", "DarkMetal" })
+                foreach (var src in new[] { "Suit", "Armor", "Black", "Rubber", "Rust", "Metal" })
                     importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), src), bodyMat);
-                importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), "Face"), mats.RobotFace);
-                importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), "Red"), mats.RobotRed);
-                importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), "Glass"), mats.RobotGlass);
+                importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), "Visor"), mats.RobotVisor);
+                importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), "Led"), mats.RobotRed);
+
+                // Клипы: «Armature|Walk» → «Walk», все зациклены
+                var clips = importer.defaultClipAnimations;
+                foreach (var c in clips)
+                {
+                    c.name = c.takeName.Split('|').Last();
+                    c.loopTime = true;
+                    c.loopPose = false;
+                }
+                importer.clipAnimations = clips;
                 importer.SaveAndReimport();
             }
+        }
+
+        /// <summary>
+        /// Animator для роботов: стоя — Idle/Walk/Run по скорости, в приседе — CrouchIdle/CrouchWalk.
+        /// Скелет у всех трёх моделей одинаковый, поэтому хватает клипов одной модели.
+        /// </summary>
+        static RuntimeAnimatorController BuildRobotAnimator()
+        {
+            string path = Gen + "/RobotAnimator.controller";
+            AssetDatabase.DeleteAsset(path);
+            var ctrl = UnityEditor.Animations.AnimatorController.CreateAnimatorControllerAtPath(path);
+            ctrl.AddParameter("Speed", AnimatorControllerParameterType.Float);
+            ctrl.AddParameter("Crouch", AnimatorControllerParameterType.Bool);
+
+            var clips = AssetDatabase.LoadAllAssetsAtPath($"{RobotsDir}/Robot_{RobotNames[0]}.fbx")
+                .OfType<AnimationClip>().Where(c => !c.name.StartsWith("__preview__")).ToList();
+            AnimationClip Clip(string n) => clips.FirstOrDefault(c => c.name == n || c.name.EndsWith("|" + n));
+            if (Clip("Idle") == null)
+            {
+                Debug.LogWarning("В Robot_Can.fbx нет анимаций — запустите Tools/Blender/build_robots.py");
+                return ctrl;
+            }
+
+            var sm = ctrl.layers[0].stateMachine;
+            var stand = ctrl.CreateBlendTreeInController("Locomotion", out var standTree, 0);
+            standTree.blendParameter = "Speed";
+            standTree.useAutomaticThresholds = false;
+            standTree.AddChild(Clip("Idle"), 0f);
+            standTree.AddChild(Clip("Walk"), 1.67f);
+            standTree.AddChild(Clip("Run"), 4.75f);
+
+            var crouch = ctrl.CreateBlendTreeInController("Crouch", out var crouchTree, 0);
+            crouchTree.blendParameter = "Speed";
+            crouchTree.useAutomaticThresholds = false;
+            crouchTree.AddChild(Clip("CrouchIdle"), 0f);
+            crouchTree.AddChild(Clip("CrouchWalk"), 1.4f);
+
+            sm.defaultState = stand;
+            var toCrouch = stand.AddTransition(crouch);
+            toCrouch.hasExitTime = false;
+            toCrouch.duration = 0.2f;
+            toCrouch.AddCondition(UnityEditor.Animations.AnimatorConditionMode.If, 0, "Crouch");
+            var toStand = crouch.AddTransition(stand);
+            toStand.hasExitTime = false;
+            toStand.duration = 0.2f;
+            toStand.AddCondition(UnityEditor.Animations.AnimatorConditionMode.IfNot, 0, "Crouch");
+
+            EditorUtility.SetDirty(ctrl);
+            AssetDatabase.SaveAssets();
+            return ctrl;
         }
 
         static void SetupIcon()
@@ -411,7 +492,7 @@ namespace YourFinalOrder.EditorTools
 
             var head = new GameObject("CameraRoot").transform;
             head.SetParent(root.transform, false);
-            head.localPosition = new Vector3(0f, 1.6f, 0f);
+            head.localPosition = new Vector3(0f, 1.66f, 0f); // уровень визора робота
 
             var camGo = new GameObject("Camera");
             camGo.transform.SetParent(head, false);
@@ -451,6 +532,7 @@ namespace YourFinalOrder.EditorTools
             var robot = root.AddComponent<RobotAppearance>();
             robot.bodyRoot = body;
             robot.models = RobotNames.Select(n => AssetDatabase.LoadAssetAtPath<GameObject>($"{RobotsDir}/Robot_{n}.fbx")).ToArray();
+            robot.animator = BuildRobotAnimator();
             root.AddComponent<Flashlight>().spot = spot;
             root.AddComponent<PlayerInteractor>().cam = cam;
             root.AddComponent<Footsteps>();
